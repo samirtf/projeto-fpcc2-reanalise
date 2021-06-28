@@ -1,0 +1,42 @@
+---
+title: "EDA SIP"
+output:
+    html_document:
+    df_print: paged
+theme: sandstone
+---
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(here)
+source(here::here("code/lib.R"))
+theme_set(theme_bw())
+
+knitr::opts_chunk$set(tidy = FALSE,
+                      fig.width = 6,
+                      fig.height = 5,
+                      echo = FALSE)
+
+```
+
+```{r read}
+estimativas_raw = read_projectdata()
+```
+
+## O que são os dados
+
+```{r}
+glimpse(estimativas_raw)
+```
+
+## Entendendo os dados
+
+Qual a distribuição das estimativas? Dos tempos de tarefa? Os tamahos de time? Quantos projetos temos? O que mais lhe parece relevante de explorar antes de começar a trabalhar com perguntas sobre as estimativas e tempos de tarefa das pessoas que trabalharam nas tarefas que os dados descrevem? 
+
+## Duas perguntas
+
+Consideremos que o erro em uma estimativa é a diferença entre a estimativa e o tempo que a tarefa de fato tomou. O erro absoluto é o módulo do erro. 
+
+### Como é a distribuição do erro nas estimativas de diferentes subcategorias de tarefas? Se quiser, use também as categorias nos dados.
+
+### Como se comparam as distribuições de tempo (real) das tarefas entre os diferentes times? Há times com tarefas consideravelmente maiores? 
