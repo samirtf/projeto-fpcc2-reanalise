@@ -1,13 +1,10 @@
-read_projectdata <- function(){
-    readr::read_csv(here::here("data/sip-estimates-raw.csv"), 
-                    col_types = cols(
-                        .default = col_character(),
-                        Priority = col_double(),
-                        HoursEstimate = col_double(),
-                        HoursActual = col_double(),
-                        DeveloperHoursActual = col_double(),
-                        TaskPerformance = col_double(),
-                        DeveloperPerformance = col_double()
-                    )) %>% 
+read_projectdata <- function(path){
+    readr::read_csv(here::here(path),
+                     locale = locale(decimal_mark = "."),
+                     col_types = cols(
+                         rodada = col_integer(),
+                         algoritmo = col_character(),
+                         RMSE = col_double()
+                         )) %>% 
         janitor::clean_names()
 }

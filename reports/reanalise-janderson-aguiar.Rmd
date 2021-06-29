@@ -1,0 +1,371 @@
+---
+title: "Reanálise Janderson Aguiar"
+output:
+    html_document:
+    df_print: paged
+theme: sandstone
+---
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(here)
+source(here::here("code/lib.R"))
+theme_set(theme_bw())
+library(boot)
+library(broom)
+knitr::opts_chunk$set(tidy = FALSE,
+                      fig.width = 10,
+                      fig.height = 5,
+                      echo = FALSE)
+
+```
+
+```{r read}
+table1_raw = read_projectdata("data/WebMedia2020_dados_1.csv")
+table2_raw = read_projectdata("data/WebMedia2020_dados_2.csv")
+table3_raw = read_projectdata("data/WebMedia2020_dados_3.csv")
+```
+
+## O que são os dados
+
+```{r}
+glimpse(table1_raw)
+glimpse(table2_raw)
+glimpse(table3_raw)
+```
+
+## Entendendo os dados
+
+Qual a distribuição das estimativas? Dos tempos de tarefa? Os tamahos de time? Quantos projetos temos? O que mais lhe parece relevante de explorar antes de começar a trabalhar com perguntas sobre as estimativas e tempos de tarefa das pessoas que trabalharam nas tarefas que os dados descrevem?
+
+```{r}
+table1_raw %>%
+    distinct(algoritmo)
+```
+```{r}
+table1_raw %>%
+group_by(algoritmo) %>%
+    summarise(
+        count = n(),
+        min = min(rmse),
+        max = max(rmse),
+        median = median(rmse),
+        mean = mean(rmse),
+    ) %>%
+    arrange(median)
+```
+
+
+
+```{r}
+table1_raw %>%
+    ggplot() + 
+    geom_density(mapping = aes(x = rmse)) +
+    facet_wrap(~ algoritmo)
+```
+O desempenho dos algoritmos está sendo avaliado conforme o resultado do seu RMSE. Quanto menor esse valor, melhor é a predição do algoritmo de recomendação.
+Ao criarmos uma visualização com as curvas de densidade de cada algoritmo, podemos observar que a maioria deles possui RMSE abaixo de 1,0, um deles possui RMSE entre 1,0 e 1,2, e apenas um possui valor muito acima dos demais com RMSE próximo de 2,0 (Random - Aleatório).
+Como os valores de RMSE dos algoritmos Random e SVD++ são muito distantes dos demais algoritmos, acabam dificultando a visualização das curvas de densidade. Além disso, faz sentido excluirmos esses dois algoritmos da comparação com os demais, pois seus desempenhos foram muito inferiores.
+
+
+```{r}
+table1_raw %>% filter(rmse <= 1) %>%
+    ggplot() + 
+    geom_density(mapping = aes(x = rmse)) +
+    facet_wrap(~ algoritmo)
+```
+
+
+**Table1_raw**
+Quanto mais baixo o valor do RMSE, melhor o algoritmo.
+Na visualização acima, acabamos por remover os algoritmos Random e SVD++, que possuíam valores de RMSE superiores a 1. Foram deixados apenas os demais.
+Se definirmos inicialmente um limiar de rmse sendo 0.84, podemos supor que os melhores algoritmos seriam BMF, BMF+(PB+PB_V+PB_N), BMF+PB, MF+(PB+PB_V+PB_N) e MF+PB. Como o algoritmo MF possui valores abaixo e valores acima do limiar, o incluiremos na nossa lista de supostos melhores algoritmos. É possível que possamos descartar os demais ou fazermos uma avaliação desse segundo grupo.
+
+
+```{r}
+table1_raw %>%
+    ggplot(aes(x = algoritmo, y = rmse)) +
+    geom_boxplot(
+        width = .2,
+        outlier.colour = NA,
+        coef = 1000,
+        position = position_nudge(.2), 
+        color = "grey"
+    ) +
+    geom_jitter(width = .05,
+                height = 0,
+                alpha = 0.4) +
+    coord_flip()
+```
+
+```{r}
+table1_raw %>% filter(rmse <= 1.0) %>%
+    ggplot(aes(x = reorder(algoritmo, rmse), y = rmse)) +
+    geom_boxplot(
+        width = .2,
+        outlier.colour = NA,
+        coef = 1000,
+        position = position_nudge(.2), 
+        color = "grey"
+    ) +
+    geom_jitter(width = .05,
+                height = 0,
+                size = .5,
+                alpha = 0.4) +
+    coord_flip()
+```
+
+A partir do boxplot acima, podemos observar que os quatro melhores algoritmos são BMF+PB, BMF+(PB+PB_V+PB_N), MF+PB e MF+(PB+PB_V+PB_N).
+O algoritmo BMF é melhor que os algoritmos MF, PB_V, PB, RPBL, PB_N e RB. Podemos também comparar entre si o algoritmo PB e suas derivações utilizando Values (PB_V) e Needs (PB_N), que, aparentemente, não possuem diferenças.
+
+
+Considerando os quatro melhores algoritmos (BMF+PB, BMF+(PB+PB_V+PB_N), MF+PB e MF+(PB+PB_V+PB_N)), minha hipótese é que o algoritmo MF+(PB+PB_V+PB_N) senha o melhor dos quatro. Sendo assim, será comparada sua diferença de desempenho com os três demais.
+
+```{r}
+comparacao1 = table1_raw %>% 
+    filter(algoritmo %in% c("MF+(PB+PB_V+PB_N)", "MF+PB"))
+
+theta <- function(d, i) {
+    agrupado = d %>% 
+        slice(i) %>% 
+        group_by(algoritmo) %>% 
+        summarise(media = mean(rmse))
+    b = agrupado %>% filter(algoritmo == "MF+(PB+PB_V+PB_N)") %>% pull(media)
+    l = agrupado %>% filter(algoritmo == "MF+PB") %>% pull(media)
+    l - b
+}
+
+theta(comparacao1, i = 1:NROW(comparacao1))
+```
+```{r}
+ci1 = boot(data = comparacao1,
+           statistic = theta,
+           R = 2000) %>%
+    tidy(conf.level = .95,
+         conf.method = "bca",
+         conf.int = TRUE)
+
+ci1
+```
+
+
+```{r}
+comparacao2 = table1_raw %>% 
+    filter(algoritmo %in% c("MF+(PB+PB_V+PB_N)", "BMF+(PB+PB_V+PB_N)"))
+
+theta2 <- function(d, i) {
+    agrupado = d %>% 
+        slice(i) %>% 
+        group_by(algoritmo) %>% 
+        summarise(media = mean(rmse))
+    b = agrupado %>% filter(algoritmo == "MF+(PB+PB_V+PB_N)") %>% pull(media)
+    l = agrupado %>% filter(algoritmo == "BMF+(PB+PB_V+PB_N)") %>% pull(media)
+    l - b
+}
+
+theta2(comparacao2, i = 1:NROW(comparacao2))
+```
+```{r}
+ci2 = boot(data = comparacao2,
+           statistic = theta2,
+           R = 2000) %>%
+    tidy(conf.level = .95,
+         conf.method = "bca",
+         conf.int = TRUE)
+
+ci2
+```
+
+
+```{r}
+comparacao3 = table1_raw %>% 
+    filter(algoritmo %in% c("MF+(PB+PB_V+PB_N)", "BMF+PB"))
+
+theta3 <- function(d, i) {
+    agrupado = d %>% 
+        slice(i) %>% 
+        group_by(algoritmo) %>% 
+        summarise(media = mean(rmse))
+    b = agrupado %>% filter(algoritmo == "MF+(PB+PB_V+PB_N)") %>% pull(media)
+    l = agrupado %>% filter(algoritmo == "BMF+PB") %>% pull(media)
+    l - b
+}
+
+theta3(comparacao3, i = 1:NROW(comparacao3))
+```
+```{r}
+ci3 = boot(data = comparacao3,
+           statistic = theta3,
+           R = 2000) %>%
+    tidy(conf.level = .95,
+         conf.method = "bca",
+         conf.int = TRUE)
+
+ci3
+```
+
+
+```{r}
+df = tibble(diferenças = character(), estatística = double(), inferior = double(), superior = double())
+df = df %>% add_row(diferenças = "MF+PB -- MF+(PB+PB_V+PB_N)", estatística = ci1$statistic, inferior = ci1$conf.low, superior = ci1$conf.high)
+df = df %>% add_row(diferenças = "BMF+(PB+PB_V+PB_N) -- MF+(PB+PB_V+PB_N)", estatística = ci2$statistic, inferior = ci2$conf.low, superior = ci2$conf.high)
+df = df %>% add_row(diferenças = "BMF+PB -- MF+(PB+PB_V+PB_N)", estatística = ci3$statistic, inferior = ci3$conf.low, superior = ci3$conf.high)
+df
+```
+
+
+```{r}
+ggplot(df, aes(x = reorder(diferenças, estatística), y = estatística)) + 
+    geom_point() +
+    geom_errorbar(aes(y = estatística, ymin = inferior, ymax = superior), width=0.2) +
+    coord_flip() + 
+    labs(title = "Intervalos de Confiança das diferenças das médias de desempenho\nentre 'MF+(PB+PB_V+PB_N)' e outras alternativas", y="Diferenças médias de desempenho", x = "Pares de algoritmos")
+```
+
+
+
+
+
+```{r}
+table2_raw %>%
+group_by(algoritmo) %>%
+    summarise(
+        count = n(),
+        min = min(rmse),
+        max = max(rmse),
+        median = median(rmse),
+        mean = mean(rmse),
+    ) %>%
+    arrange(median)
+```
+
+
+```{r}
+table2_raw %>% filter(rmse <= 1.0) %>%
+    ggplot(aes(x = reorder(algoritmo, rmse), y = rmse)) +
+    geom_boxplot(
+        width = .2,
+        outlier.colour = NA,
+        coef = 1000,
+        position = position_nudge(.2), 
+        color = "grey"
+    ) +
+    geom_jitter(width = .05,
+                height = 0,
+                size = .5,
+                alpha = 0.4) +
+    coord_flip()
+```
+Realizando o ajuste do parâmetro alpha do algoritmo MF+PB, os dois melhores ajustes são alphas iguais a 0,5 e 0,6.
+
+
+
+```{r}
+best_table2_raw = table2_raw %>%
+group_by(algoritmo) %>%
+    summarise(
+        count = n(),
+        min = min(rmse),
+        max = max(rmse),
+        median = median(rmse),
+        mean = mean(rmse),
+    ) %>%
+    arrange(median) %>% top_n(-3)
+
+best_table2_raw
+```
+
+
+```{r}
+# table2_raw %>% filter(algoritmo %in% c("MF+PB---alpha0-5", "MF+PB---alpha0-6", "MF+PB---alpha0-4")) %>%
+table2_raw %>% filter(algoritmo %in% best_table2_raw$algoritmo) %>%
+    ggplot(aes(x = reorder(algoritmo, rmse), y = rmse)) +
+    geom_boxplot(
+        width = .2,
+        outlier.colour = NA,
+        coef = 1000,
+        position = position_nudge(.2), 
+        color = "grey"
+    ) +
+    geom_jitter(width = .05,
+                height = 0,
+                size = .5,
+                alpha = 0.4) +
+    coord_flip()
+```
+
+
+
+
+
+```{r}
+table3_raw %>%
+    ggplot(aes(x = reorder(algoritmo, rmse), y = rmse)) +
+    geom_boxplot(
+        width = .2,
+        outlier.colour = NA,
+        coef = 1000,
+        position = position_nudge(.2), 
+        color = "black"
+    ) + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+```
+
+
+```{r}
+best_table3_raw = table3_raw %>%
+    group_by(algoritmo) %>%
+    summarise(
+        median = median(rmse),
+        .groups = "drop"
+    ) %>%
+    arrange(median) %>% top_n(-3)
+
+best_table3_raw
+```
+
+
+
+```{r}
+table3_raw %>% filter(algoritmo %in% best_table3_raw$algoritmo) %>%
+    ggplot(aes(x = reorder(algoritmo, rmse), y = rmse)) +
+    geom_boxplot(
+        width = .2,
+        outlier.colour = NA,
+        coef = 1000,
+        position = position_nudge(.2), 
+        color = "grey"
+    ) +
+    geom_jitter(width = .05,
+                height = 0,
+                size = .5,
+                alpha = 0.4) +
+    coord_flip()
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+## Duas perguntas
+
+Consideremos que o erro em uma estimativa é a diferença entre a estimativa e o tempo que a tarefa de fato tomou. O erro absoluto é o módulo do erro. 
+
+### Como é a distribuição do erro nas estimativas de diferentes subcategorias de tarefas? Se quiser, use também as categorias nos dados.
+
+### Como se comparam as distribuições de tempo (real) das tarefas entre os diferentes times? Há times com tarefas consideravelmente maiores? 
