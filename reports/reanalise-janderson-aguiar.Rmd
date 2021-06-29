@@ -345,19 +345,201 @@ table3_raw %>% filter(algoritmo %in% best_table3_raw$algoritmo) %>%
 
 
 
+Selecionamos os três melhores ajustes de cada algoritmo ("MF+PB---alpha0-5", "MF+PB---alpha0-6", "MF+PB---alpha0-4", "alpha0.5---w-1-1-1", "alpha0.5---w-1-1-0", "alpha0.5---w-0-1-1") e geramos seus boxplots em uma mesma visualização.
+
+
+```{r}
+best_table2 = table2_raw %>% filter(algoritmo %in% best_table2_raw$algoritmo)
+best_table3 = table3_raw %>% filter(algoritmo %in% best_table3_raw$algoritmo)
+
+merged = best_table2 %>% full_join(best_table3)
+merged
+```
+
+```{r}
+merged %>%
+    ggplot(aes(x = reorder(algoritmo, rmse), y = rmse)) +
+    geom_boxplot(
+        width = .2,
+        outlier.colour = NA,
+        coef = 1000,
+        position = position_nudge(.2), 
+        color = "grey"
+    ) +
+    geom_jitter(width = .05,
+                height = 0,
+                size = .5,
+                alpha = 0.4) +
+    coord_flip()
+```
+
+
+Podemos supor que o melhor algoritmo ajustado seja MF+(PB+PB_V+PB_N) com alpha0.5---w-1-1-1 e que será nossa baseline para comparação com os demais algoritmos ajustados.
+
+
+```{r}
+comparacao1_a = merged %>% 
+    filter(algoritmo %in% c("alpha0.5---w-1-1-1", "alpha0.5---w-0-1-1"))
+
+theta1_a <- function(d, i) {
+    agrupado = d %>% 
+        slice(i) %>% 
+        group_by(algoritmo) %>% 
+        summarise(media = mean(rmse))
+    b = agrupado %>% filter(algoritmo == "alpha0.5---w-1-1-1") %>% pull(media)
+    l = agrupado %>% filter(algoritmo == "alpha0.5---w-0-1-1") %>% pull(media)
+    l - b
+}
+
+theta1_a(comparacao1_a, i = 1:NROW(comparacao1_a))
+```
+```{r}
+ci1_a = boot(data = comparacao1_a,
+           statistic = theta1_a,
+           R = 2000) %>%
+    tidy(conf.level = .95,
+         conf.method = "bca",
+         conf.int = TRUE)
+
+ci1_a
+```
+
+
+
+```{r}
+comparacao2_a = merged %>% 
+    filter(algoritmo %in% c("alpha0.5---w-1-1-1", "alpha0.5---w-1-1-0"))
+
+theta2_a <- function(d, i) {
+    agrupado = d %>% 
+        slice(i) %>% 
+        group_by(algoritmo) %>% 
+        summarise(media = mean(rmse))
+    b = agrupado %>% filter(algoritmo == "alpha0.5---w-1-1-1") %>% pull(media)
+    l = agrupado %>% filter(algoritmo == "alpha0.5---w-1-1-0") %>% pull(media)
+    l - b
+}
+
+theta2_a(comparacao2_a, i = 1:NROW(comparacao2_a))
+```
+```{r}
+ci2_a = boot(data = comparacao2_a,
+           statistic = theta2_a,
+           R = 2000) %>%
+    tidy(conf.level = .95,
+         conf.method = "bca",
+         conf.int = TRUE)
+
+ci2_a
+```
+
+```{r}
+comparacao3_a = merged %>% 
+    filter(algoritmo %in% c("alpha0.5---w-1-1-1", "MF+PB---alpha0-5"))
+
+theta3_a <- function(d, i) {
+    agrupado = d %>% 
+        slice(i) %>% 
+        group_by(algoritmo) %>% 
+        summarise(media = mean(rmse))
+    b = agrupado %>% filter(algoritmo == "alpha0.5---w-1-1-1") %>% pull(media)
+    l = agrupado %>% filter(algoritmo == "MF+PB---alpha0-5") %>% pull(media)
+    l - b
+}
+
+theta3_a(comparacao3_a, i = 1:NROW(comparacao3_a))
+```
+```{r}
+ci3_a = boot(data = comparacao3_a,
+           statistic = theta3_a,
+           R = 2000) %>%
+    tidy(conf.level = .95,
+         conf.method = "bca",
+         conf.int = TRUE)
+
+ci3_a
+```
+
+
+
+```{r}
+comparacao4_a = merged %>% 
+    filter(algoritmo %in% c("alpha0.5---w-1-1-1", "MF+PB---alpha0-6"))
+
+theta4_a <- function(d, i) {
+    agrupado = d %>% 
+        slice(i) %>% 
+        group_by(algoritmo) %>% 
+        summarise(media = mean(rmse))
+    b = agrupado %>% filter(algoritmo == "alpha0.5---w-1-1-1") %>% pull(media)
+    l = agrupado %>% filter(algoritmo == "MF+PB---alpha0-6") %>% pull(media)
+    l - b
+}
+
+theta4_a(comparacao4_a, i = 1:NROW(comparacao4_a))
+```
+```{r}
+ci4_a = boot(data = comparacao4_a,
+           statistic = theta4_a,
+           R = 2000) %>%
+    tidy(conf.level = .95,
+         conf.method = "bca",
+         conf.int = TRUE)
+
+ci4_a
+```
+
+
+
+```{r}
+comparacao5_a = merged %>% 
+    filter(algoritmo %in% c("alpha0.5---w-1-1-1", "MF+PB---alpha0-4"))
+
+theta5_a <- function(d, i) {
+    agrupado = d %>% 
+        slice(i) %>% 
+        group_by(algoritmo) %>% 
+        summarise(media = mean(rmse))
+    b = agrupado %>% filter(algoritmo == "alpha0.5---w-1-1-1") %>% pull(media)
+    l = agrupado %>% filter(algoritmo == "MF+PB---alpha0-4") %>% pull(media)
+    l - b
+}
+
+theta5_a(comparacao5_a, i = 1:NROW(comparacao5_a))
+```
+```{r}
+ci5_a = boot(data = comparacao5_a,
+           statistic = theta5_a,
+           R = 2000) %>%
+    tidy(conf.level = .95,
+         conf.method = "bca",
+         conf.int = TRUE)
+
+ci5_a
+```
 
 
 
 
 
+```{r}
+df2 = tibble(diferenças = character(), estatística = double(), inferior = double(), superior = double())
+df2 = df2 %>% add_row(diferenças = "alpha0.5---w-0-1-1 -- alpha0.5---w-1-1-1", estatística = ci1_a$statistic, inferior = ci1_a$conf.low, superior = ci1_a$conf.high)
+df2 = df2 %>% add_row(diferenças = "alpha0.5---w-1-1-0 -- alpha0.5---w-1-1-1", estatística = ci2_a$statistic, inferior = ci2_a$conf.low, superior = ci2_a$conf.high)
+df2 = df2 %>% add_row(diferenças = "MF+PB---alpha0-5 -- alpha0.5---w-1-1-1", estatística = ci3_a$statistic, inferior = ci3_a$conf.low, superior = ci3_a$conf.high)
+df2 = df2 %>% add_row(diferenças = "MF+PB---alpha0-6 -- alpha0.5---w-1-1-1", estatística = ci4_a$statistic, inferior = ci4_a$conf.low, superior = ci4_a$conf.high)
+df2 = df2 %>% add_row(diferenças = "MF+PB---alpha0-4 -- alpha0.5---w-1-1-1", estatística = ci5_a$statistic, inferior = ci5_a$conf.low, superior = ci5_a$conf.high)
+df2
+```
 
 
-
-
-
-
-
-
+```{r}
+ggplot(df2, aes(x = reorder(diferenças, estatística), y = estatística)) + 
+    geom_point() +
+    geom_errorbar(aes(y = estatística, ymin = inferior, ymax = superior), width=0.2) +
+    coord_flip() + 
+    labs(title = "Intervalos de Confiança das diferenças das médias de desempenho\nentre 'MF+(PB+PB_V+PB_N)' e outras alternativas", y="Diferenças médias de desempenho", x = "Pares de algoritmos")
+```
 
 
 
